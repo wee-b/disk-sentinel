@@ -1,0 +1,20 @@
+# disk-sentinel bundle patch: 磁盘哨兵 Windows 磁盘分析与安全清理插件
+#
+# 作为 profile 的一个 patch 层，在 dsh-base 之上插入本插件。
+# dsh-base 已经加载了 tools、systemPrompt、subprocess 服务，
+# 本插件只需声明自身行即可。
+#
+# Row order carries no load semantics (activation is service-availability driven).
+
+- insert:
+    - id: disk-sentinel
+      name: '@dsh-plugin/disk-sentinel'
+      # 默认配置；用户可在 profile 的 cordis.patch.yml 中用
+      # id: disk-sentinel 的 config 覆盖这些值
+      config:
+        scanTimeoutMs: 300000
+        cleanTimeoutMs: 120000
+        maxDepth: 8
+        topDirsCount: 30
+        topFilesCount: 50
+        treeRenderMaxNodes: 200
