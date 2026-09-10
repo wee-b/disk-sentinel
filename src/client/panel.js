@@ -19,6 +19,7 @@ import { ScanningView } from "./views/scanning-view.js";
 import { ResultView } from "./views/result-view.js";
 import { PlanView } from "./views/plan-view.js";
 import { DiffView } from "./views/diff-view.js";
+import { DevEnvView } from "./views/dev-env-view.js";
 import cleanerIcon from "./assets/disk-sentinel.svg";
 
 var cleanerWorkspaceId = null;
@@ -36,6 +37,9 @@ function CleanerPanelBody(props) {
 	var viewState = useState("select");
 	var view = viewState[0];
 	var setView = viewState[1];
+	var mainPageState = useState("disk");
+	var mainPage = mainPageState[0];
+	var setMainPage = mainPageState[1];
 	var statusState = useState(null);
 	var status = statusState[0];
 	var setStatus = statusState[1];
@@ -203,7 +207,11 @@ function CleanerPanelBody(props) {
 	}
 
 	var body;
-	if (view === "scanning") {
+	if (mainPage === "dev-env") {
+		body = createElement(DevEnvView, {
+			connection: connection,
+		});
+	} else if (view === "scanning") {
 		body = createElement(ScanningView, {
 			connection: connection,
 			status: status,
@@ -264,7 +272,7 @@ function CleanerPanelBody(props) {
 
 	// 页面级返回统一到顶部导航栏：非首页/扫描中视图显示「←」返回按钮，
 	// 标题带当前页面名，关闭按钮始终在右上角
-	var canBack = view !== "select" && view !== "scanning";
+	var canBack = mainPage === "disk" && view !== "select" && view !== "scanning";
 	var pageNames = {
 		scanning: "扫描中",
 		result: "扫描结果",
@@ -272,8 +280,6 @@ function CleanerPanelBody(props) {
 		diff: "差量报告",
 		plan: "清理方案",
 	};
-	var title = "🧹 磁盘哨兵" + (pageNames[view] ? " · " + pageNames[view] : "");
-
 	return createElement(Fragment, null,
 		createElement("div", { className: "pcc-panel-head" },
 			canBack ? createElement("button", {
@@ -293,7 +299,26 @@ function CleanerPanelBody(props) {
 						strokeLinecap: "round",
 						strokeLinejoin: "round",
 					})))) : null,
-			createElement("h3", { className: "pcc-panel-title" }, title),
+			createElement("nav", { className: "pcc-panel-nav", role: "tablist", "aria-label": "页面导航" },
+				createElement("button", {
+					className: "pcc-panel-nav-btn",
+					"data-active": mainPage === "disk" || undefined,
+					role: "tab",
+					"aria-selected": mainPage === "disk",
+					onClick: function () {
+						setMainPage("disk");
+					},
+				}, "磁盘分析"),
+				createElement("button", {
+					className: "pcc-panel-nav-btn",
+					"data-active": mainPage === "dev-env" || undefined,
+					role: "tab",
+					"aria-selected": mainPage === "dev-env",
+					onClick: function () {
+						setMainPage("dev-env");
+						setError(null);
+					},
+				}, "开发环境分析")),
 			createElement("button", {
 				className: "pcc-panel-close",
 				title: "关闭",
