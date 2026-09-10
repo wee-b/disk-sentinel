@@ -32,10 +32,10 @@ function DevEnvView(props) {
 	var error = errorState[0];
 	var setError = errorState[1];
 
-	function load() {
+	function load(force) {
 		setLoading(true);
 		setError(null);
-		rpcCall(connection, "dev-env/scan")
+		rpcCall(connection, "dev-env/scan", { force: force === true })
 			.then(function (value) {
 				setScan(value);
 			})
@@ -51,7 +51,7 @@ function DevEnvView(props) {
 		var cancelled = false;
 		setLoading(true);
 		setError(null);
-		rpcCall(connection, "dev-env/scan")
+		rpcCall(connection, "dev-env/scan", { force: false })
 			.then(function (value) {
 				if (!cancelled) setScan(value);
 			})
@@ -85,8 +85,10 @@ function DevEnvView(props) {
 		className: "pcc-btn pcc-btn-primary",
 		style: { width: "100%", padding: "10px 0" },
 		disabled: loading,
-		onClick: load,
-	}, loading ? "正在扫描开发环境…" : scan ? "重新扫描开发环境" : "扫描开发环境"));
+		onClick: function () {
+			load(true);
+		},
+	}, loading ? "正在读取开发环境分析…" : scan ? "重新扫描开发环境" : "扫描开发环境"));
 
 	if (error) {
 		children.push(createElement("p", { className: "pcc-error", key: "err" }, "⚠ " + error));
@@ -108,8 +110,13 @@ function DevEnvView(props) {
 				createElement("div", { className: "pcc-stat-value" }, cDirs.length),
 				createElement("div", { className: "pcc-stat-label" }, "位于 C 盘的目录"))));
 
+		var scannedAt = scan.createdAt ? new Date(scan.createdAt).toLocaleString() : "-";
 		children.push(createElement("p", { key: "meta", className: "pcc-desc" },
-			"用户目录: " + (scan.userProfile || "-") + " · 扫描耗时 " + formatDuration(scan.durationMs ?? 0)));
+			"扫描时间: " + scannedAt +
+			" · " + (scan.fromCache ? "读取缓存" : "刚刚扫描") +
+			" · 扫描耗时 " + formatDuration(scan.durationMs ?? 0)));
+		children.push(createElement("p", { key: "path-meta", className: "pcc-desc" },
+			"用户目录: " + (scan.userProfile || "-")));
 
 		children.push(createElement("p", { key: "env-title", className: "pcc-section-title", style: { marginTop: "10px" } },
 			"环境变量"));
