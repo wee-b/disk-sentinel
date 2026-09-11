@@ -105,6 +105,17 @@ await writeFile(join(source, "nested", "sample.txt"), "migration-check", "utf8")
 await writeFile(join(configSource, "package.bin"), "config-migration", "utf8");
 await writeFile(configFile, "cache=D:\\AlreadyMoved\r\n", "utf8");
 
+let progressFiles = 0;
+let progressDirs = 0;
+const measuredWithProgress = await measurePath(source, {
+	onProgress(progress) {
+		progressFiles += progress.fileDelta ?? 0;
+		progressDirs += progress.dirDelta ?? 0;
+	},
+});
+assert.equal(progressFiles, measuredWithProgress.fileCount);
+assert.equal(progressDirs, measuredWithProgress.dirCount);
+
 try {
 	const scan = {
 		envPathGroups: [{

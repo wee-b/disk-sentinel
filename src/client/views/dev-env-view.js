@@ -6,10 +6,12 @@
 import * as React from "react";
 var useState = React.useState;
 var useEffect = React.useEffect;
+var useRef = React.useRef;
 var createElement = React.createElement;
 import { rpcCall } from "../rpc.js";
 import { formatBytes, formatDuration } from "../format.js";
 import { buildFileReference, sendChatMessage } from "../chat.js";
+import { useAnimatedNumber } from "../hooks/use-animated-number.js";
 
 /** 路径是否在 C 盘。 */
 function isOnCDrive(path) {
@@ -34,6 +36,9 @@ function DevEnvView(props) {
 	var scanState = useState(null);
 	var scan = scanState[0];
 	var setScan = scanState[1];
+	var scanStatusState = useState(null);
+	var scanStatus = scanStatusState[0];
+	var setScanStatus = scanStatusState[1];
 	var loadingState = useState(false);
 	var loading = loadingState[0];
 	var setLoading = loadingState[1];
@@ -67,18 +72,44 @@ function DevEnvView(props) {
 	var actionMessageState = useState(null);
 	var actionMessage = actionMessageState[0];
 	var setActionMessage = actionMessageState[1];
+	var pollTimerRef = useRef(null);
 
-	function load(force) {
-		setLoading(true);
-		setError(null);
-		rpcCall(connection, "dev-env/scan", { force: force === true })
-			.then(function (value) {
-				setScan(value);
+	function stopPolling() {
+		if (pollTimerRef.current) {
+			clearInterval(pollTimerRef.current);
+			pollTimerRef.current = null;
+		}
+	}
+
+	function pollScanStatus() {
+		rpcCall(connection, "dev-env/scan/status")
+			.then(function (snapshot) {
+				setScanStatus(snapshot);
+				if (snapshot.state === "running") return;
+				stopPolling();
+				if (snapshot.state === "error") {
+					setError(snapshot.error ?? "开发环境扫描失败");
+					setLoading(false);
+				}
 			})
 			.catch(function (err) {
 				setError(err.message ?? String(err));
+			});
+	}
+
+	function load(force) {
+		stopPolling();
+		setLoading(true);
+		setScan(null);
+		setScanStatus({ state: "starting", filesScanned: 0, dirsScanned: 0, pathsScanned: 0 });
+		setError(null);
+		rpcCall(connection, "dev-env/scan/start", { force: force === true })
+			.then(function () {
+				pollScanStatus();
+				pollTimerRef.current = setInterval(pollScanStatus, 300);
 			})
-			.finally(function () {
+			.catch(function (err) {
+				setError(err.message ?? String(err));
 				setLoading(false);
 			});
 	}
@@ -145,27 +176,32 @@ function DevEnvView(props) {
 	}
 
 	useEffect(function () {
-		var cancelled = false;
-		setLoading(true);
-		setError(null);
-		rpcCall(connection, "dev-env/scan", { force: false })
-			.then(function (value) {
-				if (!cancelled) setScan(value);
-			})
-			.catch(function (err) {
-				if (!cancelled) setError(err.message ?? String(err));
-			})
-			.finally(function () {
-				if (!cancelled) setLoading(false);
-			});
+		load(false);
 		return function () {
-			cancelled = true;
+			stopPolling();
 		};
 	}, [connection]);
 
 	var envVars = scan?.envVars ?? [];
 	var envPathGroups = scan?.envPathGroups ?? [];
 	var knownDirs = scan?.knownDirs ?? [];
+	var targetFilesScanned = scanStatus?.filesScanned ?? 0;
+	var targetDirsScanned = scanStatus?.dirsScanned ?? 0;
+	var animatedFilesScanned = useAnimatedNumber(targetFilesScanned);
+	var animatedDirsScanned = useAnimatedNumber(targetDirsScanned);
+
+	useEffect(function () {
+		if (scanStatus?.state !== "done" || !scanStatus.result) return;
+		if (animatedFilesScanned < targetFilesScanned || animatedDirsScanned < targetDirsScanned) return;
+		var timer = setTimeout(function () {
+			setScan(scanStatus.result);
+			setScanStatus(null);
+			setLoading(false);
+		}, 180);
+		return function () {
+			clearTimeout(timer);
+		};
+	}, [scanStatus, animatedFilesScanned, animatedDirsScanned, targetFilesScanned, targetDirsScanned]);
 
 	var children = [];
 	children.push(createElement("div", { className: "pcc-hero", key: "hero" },
@@ -178,7 +214,7 @@ function DevEnvView(props) {
 			className: "pcc-btn pcc-btn-primary",
 			disabled: loading,
 			onClick: function () { load(true); },
-		}, loading ? "正在读取开发环境分析…" : scan ? "重新扫描开发环境" : "扫描开发环境"),
+		}, loading ? "正在扫描开发环境…" : scan ? "重新扫描开发环境" : "扫描开发环境"),
 		createElement("button", {
 			className: "pcc-btn",
 			disabled: !scan || aiSending,
@@ -192,14 +228,35 @@ function DevEnvView(props) {
 		children.push(createElement("p", { className: "pcc-dev-success", key: "action-message" }, actionMessage));
 	}
 	if (loading && !scan && !error) {
-		children.push(createElement("p", { key: "loading", className: "pcc-desc" },
-			"正在读取环境变量并统计常见开发缓存目录…"));
+		var scanningDone = scanStatus?.state === "done";
+		children.push(createElement("div", { key: "loading", className: "pcc-dev-scan-progress" },
+			createElement("div", { className: "pcc-progress-card" },
+				createElement("p", { className: "pcc-desc" },
+					scanningDone ? null : createElement("span", { className: "pcc-pulse" }),
+					scanningDone ? "扫描完成，正在整理结果…" : "正在扫描开发环境…"),
+				createElement("div", { className: "pcc-progress-num" }, animatedFilesScanned.toLocaleString()),
+				createElement("p", { className: "pcc-section-title", style: { textAlign: "center" } },
+					"已扫描文件数"),
+				createElement("p", {
+					className: "pcc-progress-path",
+					title: scanStatus?.currentPath ?? "",
+				}, scanStatus?.currentPath ?? "正在读取环境变量…")),
+			createElement("div", { className: "pcc-statrow" },
+				createElement("div", { className: "pcc-stat" },
+					createElement("div", { className: "pcc-stat-value" }, animatedDirsScanned.toLocaleString()),
+					createElement("div", { className: "pcc-stat-label" }, "已扫描目录")),
+				createElement("div", { className: "pcc-stat" },
+					createElement("div", { className: "pcc-stat-value" }, (scanStatus?.pathsScanned ?? 0).toLocaleString()),
+					createElement("div", { className: "pcc-stat-label" }, "已统计路径")),
+				createElement("div", { className: "pcc-stat" },
+					createElement("div", { className: "pcc-stat-value" }, formatDuration(scanStatus?.elapsedMs ?? 0)),
+					createElement("div", { className: "pcc-stat-label" }, "已用时")))));
 	}
 
 	if (scan) {
 		children.push(createElement("div", { key: "summary", className: "pcc-statrow" },
 			createElement("div", { className: "pcc-stat" },
-				createElement("div", { className: "pcc-stat-value" }, envVars.length),
+				createElement("div", { className: "pcc-stat-value" }, envVars.length.toLocaleString()),
 				createElement("div", { className: "pcc-stat-label" }, "路径型环境变量")),
 			createElement("div", { className: "pcc-stat" },
 				createElement("div", { className: "pcc-stat-value" }, formatBytes(scan.totalEnvPathBytes ?? 0)),

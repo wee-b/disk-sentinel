@@ -33,7 +33,7 @@ function wrapModuleLoader(cjsCode) {
 		"\t\tvar module = { exports: {} };",
 		"\t\tvar exports = module.exports;",
 		'\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: "Module" });',
-		...cjsCode.split("\n").map((line) => "\t\t" + line),
+		...cjsCode.split("\n").map((line) => line ? "\t\t" + line : ""),
 		"\t\treturn module.exports;",
 		"\t},",
 		"});",

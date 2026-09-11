@@ -5,61 +5,9 @@
  */
 import * as React from "react";
 var useEffect = React.useEffect;
-var useRef = React.useRef;
-var useState = React.useState;
 var createElement = React.createElement;
 import { formatDuration } from "../format.js";
-
-/**
- * 平滑显示持续累加的数字，避免轮询进度时数字大段跳变。
- *
- * @param {number} target - 后端当前真实值。
- * @returns {number}
- */
-function useAnimatedNumber(target) {
-	var valueState = useState(target);
-	var value = valueState[0];
-	var setValue = valueState[1];
-	var valueRef = useRef(value);
-	var frameRef = useRef(null);
-
-	useEffect(function () {
-		var from = valueRef.current;
-		var to = Number.isFinite(target) ? target : 0;
-		if (to <= from) {
-			valueRef.current = to;
-			setValue(to);
-			return;
-		}
-
-		if (frameRef.current) cancelAnimationFrame(frameRef.current);
-		var started = performance.now();
-		var duration = Math.min(900, Math.max(260, Math.log10(to - from + 10) * 210));
-
-		function tick(now) {
-			var progress = Math.min(1, (now - started) / duration);
-			var eased = 1 - Math.pow(1 - progress, 3);
-			var next = Math.round(from + (to - from) * eased);
-			valueRef.current = next;
-			setValue(next);
-			if (progress < 1) {
-				frameRef.current = requestAnimationFrame(tick);
-			} else {
-				frameRef.current = null;
-			}
-		}
-
-		frameRef.current = requestAnimationFrame(tick);
-		return function () {
-			if (frameRef.current) {
-				cancelAnimationFrame(frameRef.current);
-				frameRef.current = null;
-			}
-		};
-	}, [target]);
-
-	return value;
-}
+import { useAnimatedNumber } from "../hooks/use-animated-number.js";
 
 /**
  * 扫描进行中视图：实时进度 + 取消按钮。
