@@ -10,8 +10,10 @@ DeepSeek Harness 的 Windows 磁盘分析与安全清理插件。
 | --- | --- |
 | `disk_scan` | WinDirStat 风格目录扫描，一次返回目录树、Top 大目录、Top 大文件和耗时 |
 | `clean_disk` | 预定义垃圾类别清理，支持 `list`、`estimate`、`clean` 三段式流程 |
+| `dev_env_migrate` | AI 开发环境迁移工具，支持对扫描路径生成一次性计划并在确认后执行 |
 | Web 面板 | 在 DSH Web UI 侧边栏提供磁盘哨兵入口，支持选择磁盘、后台扫描、取消、查看结果 |
 | AI 报告 | 扫描完成后生成报告文件，一键把 `@文件` 引用发送给当前会话，让 AI 基于报告给出建议 |
+| 开发环境分析 | 按盘符统计路径型环境变量与开发缓存，提供持久配置驱动的手动迁移和 AI 迁移分析 |
 
 ## 安全设计
 
@@ -24,6 +26,8 @@ list -> estimate -> 用户确认 -> clean
 其中 `estimate` 只预估空间，不删除文件；`clean` 才会执行不可逆清理。UI 面板的全盘扫描通过 `/disk-sentinel` RPC 通道直连宿主，不经过 LLM，也不需要在提示词里写“调用某某工具”。
 
 插件会保护磁盘哨兵工作区目录，避免删除扫描报告等 DSH 自身运行数据。
+
+开发环境迁移采用两层入口：插件会从用户默认位置以及 `MAVEN_HOME`、`M2_HOME`、`GOENV`、`NPM_CONFIG_USERCONFIG`、`PNPM_HOME` 等环境变量指向的位置寻找配置文件，也支持 Cargo、Rustup 官方提供的 `CARGO_HOME`、`RUSTUP_HOME` 专用用户环境变量。页面手动迁移仅开放给持久配置可安全修改且当前确实对应源缓存的本地规则；其他目录不显示迁移按钮，只能由 AI 基于扫描报告决定。手动执行时会再次校验扫描来源、系统保护目录、目标盘空间、源目录和配置状态，先复制校验，再修改工具持久配置，同时保留原目录备份。
 
 ## 预定义清理类别
 
@@ -104,6 +108,14 @@ dsh web
 3. 查看容量统计、Top 大目录和 Top 大文件。
 4. 点击让 AI 分析，当前会话会收到扫描报告的 `@文件` 引用，AI 可以直接读取报告并给出“可安全删除、不要动、适合迁移、建议清理顺序”等建议。
 
+在“开发环境分析”页面中：
+
+1. 首次进入时扫描路径型环境变量和常见开发目录，24 小时内优先读取缓存。
+   `Path`、`SystemRoot`、`ProgramFiles`、`TEMP` 等 Windows 通用环境变量位于本地黑名单中，不展示也不扫描。
+2. 只有找到受支持且可写的配置文件，或工具提供专用持久环境变量时才显示“迁移”按钮；点击后填写其他磁盘上的目标根目录。
+3. 点击“交给 AI 分析迁移”生成并发送报告；没有手动入口的路径只能由 AI 通过 `dev_env_migrate` 生成迁移计划。
+4. 无论手动还是 AI 迁移，都必须先查看计划并明确确认；迁移后重启终端和 IDE，验证正常后再处理备份。
+
 在对话中也可以直接让 agent 使用工具：
 
 ```text
@@ -118,6 +130,7 @@ dsh web
 | --- | ---: | --- |
 | `scanTimeoutMs` | 300000 | 扫描超时，默认 5 分钟 |
 | `cleanTimeoutMs` | 120000 | 清理超时，默认 2 分钟 |
+| `migrationTimeoutMs` | 1800000 | 开发环境目录迁移超时，默认 30 分钟 |
 | `maxDepth` | 8 | 工具默认递归深度 |
 | `topDirsCount` | 30 | 返回的 Top 目录数 |
 | `topFilesCount` | 50 | 返回的 Top 文件数 |
@@ -137,6 +150,7 @@ pnpm run build:client
 node test/scan-test.mjs
 node test/clean-estimate-test.mjs
 node test/report-test.mjs
+node test/dev-env-migration-test.mjs
 ```
 
 ## 许可证

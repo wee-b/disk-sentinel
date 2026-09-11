@@ -12,8 +12,10 @@ Disk Sentinel helps an agent understand disk usage quickly, produce a reusable r
 | --- | --- |
 | `disk_scan` | WinDirStat-style directory scan with a size tree, largest directories, and largest files |
 | `clean_disk` | Lists, estimates, and cleans predefined junk categories such as Windows temp files, recycle bin, browser caches, and developer caches |
+| `dev_env_migrate` | Lets AI plan and execute a confirmed migration for any eligible path in the latest developer-environment scan |
 | Web panel | Adds a Disk Sentinel entry to the DSH Web UI for manual scan, review, cancellation, and AI report handoff |
 | Report files | Saves scan reports into the plugin workspace so the current chat can reference the report directly |
+| Developer environment analysis | Groups path-valued environment variables by drive, with persistent-configuration-backed manual migration and AI analysis |
 
 ## Safety Model
 
@@ -24,6 +26,8 @@ list -> estimate -> user confirmation -> clean
 ```
 
 The UI path is also user-driven: choose a target, start analysis, review the result, then ask the AI to analyze the saved report. The browser talks to the host through the `/disk-sentinel` RPC channel, so full-disk scans do not need to pass through the LLM.
+
+Developer-environment migration has separate authority boundaries. Configuration discovery checks both standard user locations and paths derived from variables such as `MAVEN_HOME`, `M2_HOME`, `GOENV`, `NPM_CONFIG_USERCONFIG`, and `PNPM_HOME`. Cargo and Rustup use their officially supported `CARGO_HOME` and `RUSTUP_HOME` user variables. The Web UI exposes manual migration only when the persistent configuration is supported and currently maps to the scanned source cache. Other paths can only be selected by AI through `dev_env_migrate`. Manual migration creates a short-lived plan, requires confirmation, copies and verifies the cache before updating the persistent tool configuration, and retains the original directory as a rollback backup.
 
 ## Install
 
@@ -81,6 +85,7 @@ Run focused checks:
 node test/scan-test.mjs
 node test/clean-estimate-test.mjs
 node test/report-test.mjs
+node test/dev-env-migration-test.mjs
 ```
 
 ## License

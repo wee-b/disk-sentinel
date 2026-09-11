@@ -209,6 +209,7 @@ function CleanerPanelBody(props) {
 	var body;
 	if (mainPage === "dev-env") {
 		body = createElement(DevEnvView, {
+			ctx: ctx,
 			connection: connection,
 		});
 	} else if (view === "scanning") {
