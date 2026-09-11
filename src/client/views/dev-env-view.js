@@ -223,10 +223,11 @@ function DevEnvView(props) {
 				"未发现常见开发缓存目录。"));
 		} else {
 			knownDirs.forEach(function (d) {
-				var displayPath = d.isLink && d.linkTarget ? d.path + " → " + d.linkTarget : d.path;
-				var cDrive = isOnCDrive(d.linkTarget ?? d.path);
-				var meta = d.isLink && d.linkTarget
-					? d.tool + " · 已迁移到 " + d.linkTarget
+				var migratedPath = d.isMigrated ? d.effectivePath : null;
+				var displayPath = migratedPath ? d.path + " → " + migratedPath : d.path;
+				var cDrive = isOnCDrive(d.effectivePath ?? d.path);
+				var meta = migratedPath
+					? d.tool + " · 已迁移到 " + migratedPath
 					: d.exists
 					? d.tool + " · " + (d.fileCount ?? 0).toLocaleString() + " 文件 · " + (d.dirCount ?? 0).toLocaleString() + " 目录"
 					: d.tool + " · 未发现";
@@ -242,9 +243,12 @@ function DevEnvView(props) {
 					createElement("div", { className: "pcc-devdir-foot" },
 						createElement("span", null, meta),
 						createElement("span", { className: "pcc-devdir-actions" },
-							d.isLink ? createElement("span", { className: "pcc-badge" }, "已迁移") : null,
-							!d.isLink && cDrive && d.exists ? createElement("span", { className: "pcc-badge" }, "C 盘") : null,
-							d.exists && d.manualMigration ? createElement("button", {
+							d.isMigrated ? createElement("span", {
+								className: "pcc-badge",
+								title: d.migrationSource ? "识别来源: " + d.migrationSource : undefined,
+							}, "已迁移") : null,
+							!d.isMigrated && cDrive && d.exists ? createElement("span", { className: "pcc-badge" }, "C 盘") : null,
+							!d.isMigrated && d.exists && d.manualMigration ? createElement("button", {
 								className: "pcc-btn pcc-dev-plan-btn",
 								disabled: Boolean(planningId) || executing,
 								onClick: function () {

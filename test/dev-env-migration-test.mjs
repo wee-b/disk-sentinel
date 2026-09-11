@@ -15,7 +15,9 @@ import {
 import {
 	getManualMigrationRule,
 	resolveConfigCandidatePath,
+	resolveConfiguredLocation,
 	resolveManualMigration,
+	samePath,
 } from "../lib/dev-env-migration-rules.js";
 
 assert.ok(getManualMigrationRule("maven_repo"));
@@ -60,6 +62,24 @@ const report = renderDevEnvMigrationReport({
 });
 assert.match(report, /仅 AI/);
 assert.match(report, /dev_env_migrate/);
+
+const migratedReport = renderDevEnvMigrationReport({
+	createdAt: Date.now(),
+	envPathCount: 0,
+	envPathGroups: [],
+	knownDirs: [{
+		id: "configured",
+		label: "已迁移缓存",
+		path: "C:\\Dev\\cache",
+		effectivePath: "E:\\DevCache\\cache",
+		sizeBytes: 2048,
+		exists: true,
+		isMigrated: true,
+		manualMigration: null,
+	}],
+});
+assert.match(migratedReport, /C:\\Dev\\cache -> E:\\DevCache\\cache/);
+assert.match(migratedReport, /已迁移/);
 
 const protectedReport = renderDevEnvMigrationReport({
 	createdAt: Date.now(),
@@ -155,6 +175,20 @@ try {
 		envKey: "DSH_TEST_CONFIG_HOME",
 		relativePath: "tool.rc",
 	}), join(tmpdir(), "tool.rc"));
+	const configuredFromEnv = await resolveConfiguredLocation({
+		locationCandidates: [{ type: "env", envKey: "DSH_TEST_CONFIG_HOME", relativePath: "cache" }],
+	});
+	assert.equal(configuredFromEnv.path, join(tmpdir(), "cache"));
+	assert.equal(configuredFromEnv.source, "环境变量 DSH_TEST_CONFIG_HOME");
+	assert.equal(samePath(configuredFromEnv.path + "\\", join(tmpdir(), "cache")), true);
+	await writeFile(configFile, "cache=" + join(destinationRoot, "configured-active") + "\r\n", "utf8");
+	const configuredFromFile = await resolveConfiguredLocation({
+		configKey: "cache",
+		locationCandidates: [{ type: "config", path: configFile, format: "key-value" }],
+	});
+	assert.equal(configuredFromFile.path, join(destinationRoot, "configured-active"));
+	assert.equal(configuredFromFile.settingLabel, configFile);
+	await writeFile(configFile, "registry=x\r\n", "utf8");
 	delete process.env.DSH_TEST_CONFIG_HOME;
 	delete process.env.DSH_TEST_CACHE_HOME;
 
