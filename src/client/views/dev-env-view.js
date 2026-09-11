@@ -140,16 +140,48 @@ function DevEnvView(props) {
 				targetRoot: targetRoot.trim(),
 			});
 			setMigrationTarget(null);
+			var destinationWarning = value.destinationHasContent
+				? "\n\n⚠ 目标目录已有 " + (value.destinationFileCount ?? 0).toLocaleString() +
+					" 个文件。继续后将用迁移内容替换该目录；原内容会先备份到：\n" +
+					value.destinationBackupPath
+				: "";
 			var confirmed = window.confirm(
 				"确定要迁移到 " + value.destinationPath + " 目录吗？\n\n" +
 				"源目录: " + value.sourcePath + "\n" +
 				"持久配置: " + (value.configChange?.path ?? value.envChanges.map(function (change) { return change.key; }).join(", ")) + "\n\n" +
-				"确认后将迁移文件并修改持久配置，原目录会保留为备份。"
+				"确认后将迁移文件并修改持久配置，原目录会保留为备份。" + destinationWarning
 			);
 			if (!confirmed) return;
 			setExecuting(true);
 			var result = await rpcCall(connection, "dev-env/migration/execute", { planId: value.planId });
-			setActionMessage("迁移完成，工具配置已更新，备份保留在 " + result.backupPath + "。请重启终端和 IDE 后验证。");
+			setScan(function (current) {
+				if (!current) return current;
+				return {
+					...current,
+					knownDirs: (current.knownDirs ?? []).map(function (entry) {
+						if (entry.id !== item.id) return entry;
+						return {
+							...entry,
+							effectivePath: result.destinationPath,
+							exists: true,
+							isDirectory: true,
+							isMigrated: true,
+							migrationSource: result.configChange
+								? "配置文件 " + result.configChange.path
+								: result.envChanges.length > 0
+									? "用户环境变量 " + result.envChanges.map(function (change) { return change.key; }).join(", ")
+									: "目录链接",
+							manualMigration: null,
+							sizeBytes: result.sizeBytes,
+							fileCount: result.fileCount,
+							dirCount: result.dirCount,
+						};
+					}),
+				};
+			});
+			setActionMessage("迁移完成，工具配置已更新，源目录备份保留在 " + result.backupPath +
+				(result.destinationBackupPath ? "，目标原内容备份保留在 " + result.destinationBackupPath : "") +
+				"。请重启终端和 IDE 后验证。");
 		} catch (err) {
 			setError(err.message ?? String(err));
 		} finally {
