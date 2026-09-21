@@ -26,6 +26,12 @@ var cleanerWorkspaceId = null;
 var cleanerWorkspaceFallback = null;
 var cleanerNavigationPending = false;
 
+/** 从绝对路径或文件名提取适合页头展示的报告名称。 */
+function displayFileName(value, fallback) {
+	var name = String(value ?? "").split(/[\\/]/).pop();
+	return name ? name.replace(/\.(json|md)$/i, "") : fallback;
+}
+
 /**
  * 磁盘哨兵页面主体（状态机：select → scanning → result / history）。
  *
@@ -271,8 +277,7 @@ function CleanerPanelBody(props) {
 		});
 	}
 
-	// 页面级返回统一到顶部导航栏：非首页/扫描中视图显示「←」返回按钮，
-	// 标题带当前页面名，关闭按钮始终在右上角
+	// 报告详情页显示「返回 + 报告名」，首页才显示主导航，避免层级混淆。
 	var canBack = mainPage === "disk" && view !== "select" && view !== "scanning";
 	var pageNames = {
 		scanning: "扫描中",
@@ -281,6 +286,11 @@ function CleanerPanelBody(props) {
 		diff: "差量报告",
 		plan: "清理方案",
 	};
+	var detailTitle = pageNames[view] ?? "磁盘分析";
+	if (view === "history") detailTitle = displayFileName(historyFile, detailTitle);
+	else if (view === "result") detailTitle = displayFileName(status?.result?.resultFile, detailTitle);
+	else if (view === "plan") detailTitle = displayFileName(planFile, detailTitle);
+	else if (view === "diff") detailTitle = displayFileName(diffResult?.resultFile, detailTitle);
 	return createElement(Fragment, null,
 		createElement("div", { className: "pcc-panel-head" },
 			canBack ? createElement("button", {
@@ -300,7 +310,10 @@ function CleanerPanelBody(props) {
 						strokeLinecap: "round",
 						strokeLinejoin: "round",
 					})))) : null,
-			createElement("nav", { className: "pcc-panel-nav", role: "tablist", "aria-label": "页面导航" },
+			canBack ? createElement("h2", {
+				className: "pcc-panel-title",
+				title: detailTitle,
+			}, detailTitle) : createElement("nav", { className: "pcc-panel-nav", role: "tablist", "aria-label": "页面导航" },
 				createElement("button", {
 					className: "pcc-panel-nav-btn",
 					"data-active": mainPage === "disk" || undefined,
