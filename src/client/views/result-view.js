@@ -1,5 +1,5 @@
 /**
- * 结果视图：各盘统计 + Top 大目录/文件 + AI 分析入口 + 可切换的全量目录树。
+ * 结果视图：各盘统计 + Top 大目录/文件 + 软件占用排名 + AI 分析入口 + 可切换的全量目录树。
  *
  * @module @dsh-plugin/disk-sentinel/client/views/result-view
  */
@@ -206,7 +206,7 @@ function ResultView(props) {
 	var filesAllState = useState(false);
 	var filesAll = filesAllState[0];
 	var setFilesAll = filesAllState[1];
-	// 视图切换：榜单 / 目录树（有全量明细时可用）
+	// 视图切换：目录榜单 / 软件占用 / 目录树（有全量明细时可用）
 	var tabState = useState("list");
 	var tab = tabState[0];
 	var setTab = tabState[1];
@@ -312,24 +312,30 @@ function ResultView(props) {
 	}
 	for (var a = 0; a < aiChildren.length; a++) children.push(aiChildren[a]);
 
-	// 榜单 / 目录树切换（仅在有全量明细数据时提供树视图）
-	if (reportFile) {
-		children.push(createElement("div", { key: "tabs", className: "pcc-tabs" },
+	// 目录榜单 / 软件占用 / 目录树切换。
+	children.push(createElement("div", { key: "tabs", className: "pcc-tabs" },
 			createElement("button", {
 				className: "pcc-tab",
-				"data-active": tab !== "tree" || undefined,
+				"data-active": tab === "list" || undefined,
 				onClick: function () {
 					setTab("list");
 				},
 			}, "📊 排行榜"),
 			createElement("button", {
 				className: "pcc-tab",
+				"data-active": tab === "apps" || undefined,
+				onClick: function () {
+					setTab("apps");
+				},
+			}, "🧩 软件占用"),
+			reportFile ?
+			createElement("button", {
+				className: "pcc-tab",
 				"data-active": tab === "tree" || undefined,
 				onClick: function () {
 					setTab("tree");
 				},
-			}, "🌳 目录树")));
-	}
+			}, "🌳 目录树") : null));
 
 	if (tab === "tree" && reportFile) {
 		// 目录树视图：全量目录明细的层级浏览（WinDirStat 式）
@@ -340,6 +346,49 @@ function ResultView(props) {
 					setTab("list");
 				},
 			}));
+	} else if (tab === "apps") {
+		var apps = result.applications ?? [];
+		children.push(createElement("p", { key: "apps-title", className: "pcc-section-title", style: { marginTop: "6px" } },
+			"🧩 软件占用 Top " + apps.length + "（跨盘聚合估算）"));
+		children.push(createElement("p", { key: "apps-hint", className: "pcc-desc" },
+			"按常见安装目录、用户数据目录和游戏库聚合；共享组件或自定义目录可能无法准确归属。扫描全部磁盘时才能得到完整的跨盘合计。"));
+		if (apps.length === 0) {
+			children.push(createElement("p", { key: "apps-empty", className: "pcc-desc" },
+				"当前报告没有软件占用数据。若这是旧报告，请重新扫描；若只扫描了单个盘符，可选择“全部磁盘”重试。"));
+		} else {
+			var maxAppSize = Math.max(1, apps.reduce(function (max, app) {
+				return Math.max(max, app.size ?? 0);
+			}, 0));
+			apps.forEach(function (app, index) {
+				var locations = app.locations ?? [];
+				children.push(createElement("div", {
+					key: "app-" + app.name + "-" + index,
+					className: "pcc-app-item",
+					title: locations.map(function (item) { return item.path; }).join("\n"),
+				},
+					createElement("div", {
+						className: "pcc-row-bar",
+						style: { width: Math.max(2, Math.round(((app.size ?? 0) / maxAppSize) * 100)) + "%" },
+					}),
+					createElement("div", { className: "pcc-app-head" },
+						createElement("span", { className: "pcc-app-rank" }, "#" + (index + 1)),
+						createElement("span", { className: "pcc-app-name" }, app.name),
+						createElement("span", { className: "pcc-app-size" }, formatBytes(app.size ?? 0))),
+					createElement("div", { className: "pcc-app-drives" },
+						(app.drives ?? []).map(function (drive) {
+							return createElement("span", { key: drive.drive, className: "pcc-app-drive" },
+								drive.drive + " " + formatBytes(drive.size ?? 0));
+						})),
+					createElement("div", { className: "pcc-app-locations" },
+						locations.slice(0, 5).map(function (location) {
+							return createElement("div", { key: location.path, className: "pcc-app-location" },
+								createElement("span", null, location.path),
+								createElement("span", null, formatBytes(location.size ?? 0)));
+						}),
+						locations.length > 5 ? createElement("div", { className: "pcc-app-location" },
+							"另有 " + (locations.length - 5) + " 个位置") : null)));
+			});
+		}
 	} else {
 
 	// Top 大目录
@@ -400,7 +449,7 @@ function ResultView(props) {
 			},
 		}, filesAll ? "▲ 收起文件榜单" : "▼ 显示全部 " + fileList.length + " 个文件"));
 	}
-	} // end 榜单分支（else of 目录树）
+	} // end 目录榜单分支
 
 	// 页面级返回已统一到顶部导航栏（CleanerPanelBody 的 panel-head）
 
