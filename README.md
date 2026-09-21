@@ -24,6 +24,24 @@ DeepSeek Harness 的 Windows 磁盘分析与安全清理插件。安装后会在
 | 历史差量 | 对比两次扫描报告，查看新增、消失、增长和缩小的目录 |
 | 开发环境分析 | 扫描路径型环境变量与常见开发缓存，识别真实生效路径并提供安全迁移入口 |
 
+## 界面预览
+
+### 插件入口
+
+![磁盘哨兵在 DSH 侧边栏中的入口](docs/images/plugin-entry.png)
+
+### 磁盘分析
+
+![磁盘分析目标选择页面](docs/images/disk-analysis.png)
+
+### 扫描结果
+
+![磁盘扫描结果与空间占用排行](docs/images/scan-results.png)
+
+### 开发环境分析
+
+![开发环境目录与缓存分析页面](docs/images/dev-environment-analysis.png)
+
 ## 安全设计
 
 清理工具遵循固定流程：
