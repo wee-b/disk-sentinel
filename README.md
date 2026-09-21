@@ -1,6 +1,13 @@
 # DSH Disk Sentinel / 磁盘哨兵
 
-DeepSeek Harness 的 Windows 磁盘分析与安全清理插件。
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Platform](https://img.shields.io/badge/platform-Windows-0078D4.svg)
+![DSH profile](https://img.shields.io/badge/DSH%20profile-web-4C6EF5.svg)
+
+DeepSeek Harness 的 Windows 磁盘分析与安全清理插件。安装后会在 DSH Web UI 中增加
+“磁盘哨兵”入口，提供可视化磁盘扫描、软件占用排名、历史差量、AI 清理建议与开发环境迁移。
+
+> 本项目是社区维护的非官方插件，与 DeepSeek AI 无隶属关系。
 
 磁盘哨兵把磁盘扫描、报告、空间预估、用户确认和清理收敛为稳定工具与可视化面板，避免 AI Agent 临时生成大量 `dir`、`Get-ChildItem` 命令逐层扫描。这样既能减少耗时与 token 消耗，也让清理和迁移过程更容易审计。
 
@@ -53,21 +60,57 @@ list -> estimate -> 用户确认 -> clean
 
 ## 安装
 
-前置要求：
+### 从 GitHub 安装（推荐）
+
+前置要求：Windows 系统，并已安装 DeepSeek Harness（`dsh`）。
+
+```powershell
+dsh plugin --profile web add git+https://github.com/wee-b/disk-sentinel.git
+dsh web
+```
+
+仓库已提交构建后的浏览器端文件，从 GitHub 安装不需要另外安装 pnpm 或执行构建。
+启动 DSH 后，侧边栏设置区域附近会出现 **磁盘哨兵** 入口。
+
+### 更新
+
+使用最新版源码重新安装：
+
+```powershell
+dsh plugin --profile web remove @dsh-plugin/disk-sentinel
+dsh plugin --profile web add git+https://github.com/wee-b/disk-sentinel.git
+dsh web
+```
+
+### 卸载
+
+```powershell
+dsh plugin --profile web remove @dsh-plugin/disk-sentinel
+```
+
+卸载插件不会自动删除已经生成的本地扫描报告。如需手动清理报告，可在确认不再需要后删除：
+
+```text
+%TEMP%\磁盘哨兵
+```
+
+### 从源码开发安装
+
+开发环境需要：
 
 - Windows 系统
 - 已安装 DeepSeek Harness（`dsh`）
 - 已安装 pnpm
 
-在仓库目录执行：
+克隆仓库后执行：
 
-```sh
+```powershell
+git clone https://github.com/wee-b/disk-sentinel.git
+cd disk-sentinel
 pnpm install
 pnpm run build:client
 dsh plugin --profile web add .
 ```
-
-安装完成后打开 DSH Web UI，侧边栏设置区域附近会出现 **磁盘哨兵** 入口。
 
 ## Windows pnpm link 手动安装
 
@@ -94,12 +137,39 @@ dsh plugin --profile web add .
 
 然后执行：
 
-```sh
+```powershell
 cd %USERPROFILE%\.dsh\profiles\web
 pnpm install
 dsh --profile web --dump-config | findstr disk-sentinel
 dsh web
 ```
+
+## 兼容性
+
+| 项目 | 支持情况 |
+| --- | --- |
+| 操作系统 | Windows；当前版本使用 PowerShell、盘符和 Windows 用户环境变量，不支持 macOS/Linux |
+| DSH Profile | `web` |
+| 已验证 DSH 版本 | `0.1.5-rc.2` |
+| 已验证 Node.js 版本 | `24.21.0` |
+| 网络服务 | 插件自身不连接外部服务；AI 分析使用用户在 DSH 中配置的模型提供方 |
+| 遥测 | 无遥测、无使用数据收集 |
+
+较新的 DSH 版本通常也可使用，但如果宿主的插件 RPC 或工作区 API 发生不兼容变更，请提交
+[Issue](https://github.com/wee-b/disk-sentinel/issues) 并附上 DSH 版本与错误日志。
+
+## 权限、数据与风险说明
+
+插件只在用户主动操作时执行扫描、清理或迁移：
+
+- **磁盘读取**：扫描用户选择的盘符，读取目录结构、文件大小和修改时间；无法访问的目录会跳过，不会为了扫描自动提权。
+- **本地写入**：扫描报告、差量报告和迁移分析保存在 `%TEMP%\磁盘哨兵`。
+- **删除操作**：只有 `clean_disk` 的 `clean` 模式会删除数据；推荐固定遵循 `list → estimate → 用户确认 → clean`。
+- **进程调用**：使用 PowerShell 或系统命令读取磁盘容量、执行预定义缓存清理、打开目录选择器和修改受支持的开发工具配置。
+- **配置修改**：开发环境迁移在用户确认后可能修改工具配置文件或专用的 Windows 用户环境变量，但不会修改系统 `Path`。
+- **AI 数据边界**：普通磁盘扫描不经过 LLM；只有用户点击“让 AI 分析”或主动引用报告时，报告中的本地路径和空间统计才会交给 DSH 当前配置的模型提供方处理。
+
+清理与迁移属于高影响操作。请先查看预估和计划，确认路径、目标盘和备份状态；重要数据应另有备份。
 
 ## 使用方式
 
@@ -161,6 +231,14 @@ dsh web
 
 每次生成新的开发环境迁移分析报告后，只保留最新的 `开发环境迁移分析-*.md`，并自动删除旧报告和 `开发环境分析.json` 扫描缓存；磁盘扫描与差量报告不受影响。
 
+## 已知限制
+
+- 软件占用排名是基于常见安装目录、AppData、ProgramData、WindowsApps 和游戏库的目录归属估算，不等同于 Windows“已安装的应用”统计。
+- 共享运行库、自定义安装目录、硬链接、稀疏文件以及厂商复用目录可能导致应用归属或占用值存在偏差。
+- 只扫描单个盘符时，软件排名只反映该盘；需要跨盘合计时请选择“整个硬盘”。
+- 受权限保护或被其他进程占用的路径可能无法扫描或清理；插件会跳过并保留错误信息。
+- `%TEMP%` 可能被系统或清理工具清空，重要报告请及时另行保存。
+
 ## 配置
 
 | 配置项 | 默认值 | 说明 |
@@ -195,8 +273,15 @@ node test/dev-env-var-blacklist-test.mjs
 node test/dev-env-path-blacklist-test.mjs
 node test/layout-test.mjs
 node test/chat-interaction-test.mjs
+node test/application-ranking-test.mjs
 ```
+
+## 反馈与贡献
+
+- 问题反馈：[GitHub Issues](https://github.com/wee-b/disk-sentinel/issues)
+- 源码仓库：[wee-b/disk-sentinel](https://github.com/wee-b/disk-sentinel)
+- 提交修改前请运行与改动相关的测试，并重新执行 `pnpm run build:client` 提交最新的 `lib/client.js`。
 
 ## 许可证
 
-MIT
+[MIT](LICENSE)

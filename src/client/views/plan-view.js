@@ -6,9 +6,29 @@
 import * as React from "react";
 var useState = React.useState;
 var useEffect = React.useEffect;
+var useMemo = React.useMemo;
 var createElement = React.createElement;
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 import { rpcCall } from "../rpc.js";
 import { buildPlanFollowUpPrompt, sendChatMessage } from "../chat.js";
+
+/**
+ * 将方案 Markdown 转成安全 HTML。marked 负责 GFM 表格、任务列表和代码块，
+ * DOMPurify 会移除脚本、事件属性及其他可执行内容。
+ *
+ * @param {string} source - Markdown 原文。
+ * @returns {string} 可安全插入页面的 HTML。
+ */
+function renderMarkdown(source) {
+	var html = marked.parse(source ?? "", {
+		gfm: true,
+		breaks: true,
+	});
+	return DOMPurify.sanitize(html, {
+		USE_PROFILES: { html: true },
+	});
+}
 
 /**
  * 清理方案查看视图：展示 AI 生成的「磁盘清理方案-*.md」全文。
@@ -30,6 +50,9 @@ function PlanView(props) {
 	var sendErrorState = useState(null);
 	var sendError = sendErrorState[0];
 	var setSendError = sendErrorState[1];
+	var renderedMarkdown = useMemo(function () {
+		return renderMarkdown(plan?.content ?? "");
+	}, [plan?.content]);
 
 	useEffect(function () {
 		var cancelled = false;
@@ -61,7 +84,11 @@ function PlanView(props) {
 			children.push(createElement("p", { key: "meta", className: "pcc-desc" },
 				"生成于 " + new Date(plan.createdAt).toLocaleString()));
 		}
-		children.push(createElement("div", { key: "content", className: "pcc-plan-content" }, plan.content ?? ""));
+		children.push(createElement("div", {
+			key: "content",
+			className: "pcc-plan-content pcc-markdown",
+			dangerouslySetInnerHTML: { __html: renderedMarkdown },
+		}));
 		// 导入对话：@ 引用方案全文，让 AI 基于既有方案跟进（核实/执行/修订）。
 		// plan.path 为 plan/get 补充的绝对路径，旧宿主未返回时提示重启
 		var actionChildren = [];

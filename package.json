@@ -43,6 +43,8 @@
     "@deepseek-ai/dsh-tools": "^0.1.1-rc.2"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "dompurify": "^3.4.15",
+    "esbuild": "^0.28.2",
+    "marked": "^18.0.13"
   }
 }

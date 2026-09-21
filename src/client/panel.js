@@ -405,12 +405,17 @@ function PCCleanerPanel(props) {
  */
 function openCleaner(ctx) {
 	cleanerNavigationPending = true;
-	setPanelOpen(true);
 
-	// 关闭官方详情列，避免与右侧面板重叠
+	// 打开插件面板前关闭任意官方 rightbar，形成双向互斥。
 	try {
-		ctx.layout?.closeDetails();
+		// sidebarRight 才是官方右栏的真实业务状态；只调用 layout.closeRightbar()
+		// 会被仍处于 expanded 状态的官方右栏在下一次同步时重新打开。
+		if (ctx.sidebarRight?.isExpanded?.()) ctx.sidebarRight.toggleExpanded();
+		// 同时立即收起布局层，避免状态同步期间出现闪烁；保留旧方法兼容早期宿主。
+		if (typeof ctx.layout?.closeRightbar === "function") ctx.layout.closeRightbar();
+		else ctx.layout?.closeDetails?.();
 	} catch {}
+	setPanelOpen(true);
 
 	var workspaces = ctx.workspaces;
 	if (!workspaces) {

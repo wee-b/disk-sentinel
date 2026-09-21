@@ -78,12 +78,24 @@ function startLayoutWatch() {
 	stopLayoutWatch();
 	applyPanelLayout();
 	layoutObserver = new MutationObserver(function () {
+		var frame = findFrame();
+		// 任意 DSH 官方 rightbar 打开时都让插件面板主动退出。
+		// 不判断内容类型，因此文件预览、Markdown、设置或未来新增的官方
+		// 右侧页面都会与磁盘哨兵保持互斥。
+		if (panelOpen && frame && !frame.hasAttribute("data-rightbar-collapsed")) {
+			setPanelOpen(false);
+			return;
+		}
 		applyPanelLayout();
 	});
 	var frame = findFrame();
 	if (frame) {
-		// React 重写 grid-template-columns（拖动侧栏 / resize）时重算
-		layoutObserver.observe(frame, { attributes: true, attributeFilter: ["style"] });
+		// React 重写 grid-template-columns（拖动侧栏 / resize）时重算；
+		// 任意官方 rightbar 展开时则收起插件面板。
+		layoutObserver.observe(frame, {
+			attributes: true,
+			attributeFilter: ["style", "data-rightbar-collapsed"],
+		});
 	} else {
 		// frame 尚未挂载：等一帧重试
 		setTimeout(function () {
@@ -91,7 +103,10 @@ function startLayoutWatch() {
 				var late = findFrame();
 				if (late) {
 					applyPanelLayout();
-					layoutObserver.observe(late, { attributes: true, attributeFilter: ["style"] });
+					layoutObserver.observe(late, {
+						attributes: true,
+						attributeFilter: ["style", "data-rightbar-collapsed"],
+					});
 				}
 			}
 		}, 300);

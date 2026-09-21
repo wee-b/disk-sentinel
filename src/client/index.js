@@ -27,7 +27,7 @@ import { injectCss } from "./css.js";
 import { stopLayoutWatch } from "./layout.js";
 import { PCCleanerSidebarAction, PCCleanerPanel } from "./panel.js";
 
-var inject = ["slots", "connection", "workspaces", "sessions", "layout"];
+var inject = ["slots", "connection", "workspaces", "sessions", "layout", "sidebarRight"];
 
 /**
  * 客户端插件入口：注册侧边栏入口与右侧磁盘哨兵页面。
